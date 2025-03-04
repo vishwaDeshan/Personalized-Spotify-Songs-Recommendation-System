@@ -1,7 +1,7 @@
 # music-recommendation-system/
 
 ```plaintext
-├── backend/
+├── music-recommendation-backend/
 │   ├── app/
 │   │   ├── main.py                    # FastAPI main application file
 │   │   ├── routers/
@@ -34,7 +34,7 @@
 │   ├── tests/                          # Unit and integration tests for backend modules
 │   ├── .env                            # Environment variables (e.g., Spotify API keys, DB credentials)
 │   └── requirements.txt                # Python dependencies
-├── frontend/
+├── music-recommendation-frontend/
 │   ├── public/
 │   │   └── index.html                  # Static HTML file for the frontend
 │   ├── src/
