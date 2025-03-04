@@ -1,156 +1,119 @@
+# Import required libraries
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
+from sklearn.preprocessing import MultiLabelBinarizer
+from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
-from sklearn.metrics.pairwise import euclidean_distances
 
-# Step 1: Load the dataset from CSV
+# Hardcoded input
+input_age = 26
+input_sex = 'Male'
+input_profession = 'Undergraduate'  # Will map to 'Student'
+input_music = ['Rock', 'Classical', 'Pop']  # Adjust 'Classical' to 'Classic'
+
+# Load the dataset from CSV
 try:
-    df = pd.read_csv('./datasets/user_profile.csv')
+    df = pd.read_csv('../datasets/user_profile.csv')
 except FileNotFoundError:
     raise FileNotFoundError("User profiles CSV not found.")
 except pd.errors.EmptyDataError:
     raise ValueError("The CSV file is empty or malformed.")
 
-# Clean and preprocess the DataFrame
-df = df.replace('', np.nan)
-df['Age'] = pd.to_numeric(df['Age'], errors='coerce')  # Converts non-numeric to NaN
-df['Age'] = df['Age'].fillna(df['Age'].median())  # Fill NaN with median of 'Age'
-df['Sex'] = df['Sex'].fillna('Unknown')  # Handle missing sex
-df['Profession'] = df['Profession'].fillna('Unknown')  # Handle missing profession
-df['Type of music you like to listen?'] = df['Type of music you like to listen?'].str.split(', ').apply(lambda x: [item.strip() for item in x if item.strip()])
+# Select relevant columns
+df = df[['Id', 'Name', 'Age', 'Sex', 'Profession', 'Type of music you like to listen?']]
 
-# Focus on relevant columns for similarity: Age, Sex, Profession, and Type of music
-relevant_columns = ['Age', 'Sex', 'Profession', 'Type of music you like to listen?']
-df = df[relevant_columns]
+# Rename the music column for simplicity
+df = df.rename(columns={'Type of music you like to listen?': 'Genres'})
 
-# Encode categorical variables
-le_sex = LabelEncoder()
-le_profession = LabelEncoder()
+# Drop rows with missing values in key columns
+df = df.dropna(subset=['Age', 'Sex', 'Profession', 'Genres'])
 
-df['Sex'] = le_sex.fit_transform(df['Sex'])
-df['Profession'] = le_profession.fit_transform(df['Profession'])
+# Clean up the Genres column (remove trailing commas and split into lists)
+df['Genres'] = df['Genres'].str.strip(',').str.split(', ')
 
-# Convert music preferences into binary vectors (one-hot encoding)
-music_types = set()
-for music_list in df['Type of music you like to listen?']:
-    music_types.update(music_list)
+# Adjust input to match dataset conventions
+input_music = ['Rock', 'Classic', 'Pop']  # 'Classical' corrected to 'Classic'
+input_profession = 'Student'  # Map 'Undergraduate' to 'Student'
 
-music_types = sorted(list(music_types))  # Unique music types
+# Compute maximum age difference for normalization
+min_age = df['Age'].min()
+max_age = df['Age'].max()
+max_age_diff = max_age - min_age
 
-# Create binary columns for each music type
-for music_type in music_types:
-    df[music_type] = df['Type of music you like to listen?'].apply(lambda x: 1 if music_type in x else 0)
-
-# Drop the original music list column
-df = df.drop(columns=['Type of music you like to listen?'])
-
-# Normalize numerical data (Age)
-scaler = StandardScaler()
-df['Age'] = scaler.fit_transform(df[['Age']])
-
-# Prepare the feature matrix for clustering (all columns except non-numeric indices if any)
-X = df.drop(columns=['Sex', 'Profession'])  # Keep numerical and binary columns for K-means
-
-# Determine the optimal number of clusters
-def find_optimal_clusters(X, max_k=10):
-    inertias = []
-    silhouette_scores = []
-    K = range(2, max_k + 1)
+# Function to compute similarity between a user and the input
+def compute_similarity(row):
+    # Age similarity: 1 - normalized absolute difference
+    age_sim = 1 - abs(row['Age'] - input_age) / max_age_diff
     
-    for k in K:
-        kmeans = KMeans(n_clusters=k, random_state=42)
-        kmeans.fit(X)
-        inertias.append(kmeans.inertia_)
-        silhouette_scores.append(silhouette_score(X, kmeans.labels_))
+    # Sex similarity: 1 if match, 0 if different
+    sex_sim = 1 if row['Sex'] == input_sex else 0
     
-    return inertias, silhouette_scores, K
+    # Profession similarity: 1 if match with 'Student', 0 if different
+    prof_sim = 1 if row['Profession'] == input_profession else 0
+    
+    # Music genre similarity: Jaccard similarity
+    user_genres = set(row['Genres'])
+    input_genres = set(input_music)
+    intersection = user_genres & input_genres
+    union = user_genres | input_genres
+    genre_sim = len(intersection) / len(union) if union else 0
+    
+    # Overall similarity: average of all components
+    overall_sim = (age_sim + sex_sim + prof_sim + genre_sim) / 4
+    return overall_sim
 
-inertias, silhouette_scores, K = find_optimal_clusters(X)
+# Compute similarity for all users
+df['Similarity'] = df.apply(compute_similarity, axis=1)
 
-# Plot elbow curve (optional, for visualization)
-plt.figure(figsize=(12, 5))
+# Sort by similarity (descending) and get top 5 similar users
+top_n = 5
+similar_users = df.sort_values(by='Similarity', ascending=False).head(top_n)
 
-plt.subplot(1, 2, 1)
-plt.plot(K, inertias, 'bx-')
-plt.xlabel('k')
-plt.ylabel('Inertia')
-plt.title('Elbow Method For Optimal k')
+# Display details of similar users
+print("Top 5 Similar Users:")
+print(similar_users[['Id', 'Name', 'Age', 'Sex', 'Profession', 'Genres', 'Similarity']])
 
-plt.subplot(1, 2, 2)
-plt.plot(K, silhouette_scores, 'bx-')
-plt.xlabel('k')
-plt.ylabel('Silhouette Score')
-plt.title('Silhouette Score For Optimal k')
+# --- Visualization Preparation ---
 
-plt.tight_layout()
+# Standardize Age for the feature matrix
+mean_age = df['Age'].mean()
+std_age = df['Age'].std()
+df['Age_std'] = (df['Age'] - mean_age) / std_age
+
+# Encode Sex as binary (Male: 0, Female: 1)
+df['Sex_binary'] = df['Sex'].map({'Male': 0, 'Female': 1})
+
+# One-hot encode Profession
+profession_dummies = pd.get_dummies(df['Profession'], prefix='Prof')
+
+# Encode music genres using MultiLabelBinarizer
+mlb = MultiLabelBinarizer()
+genres_dummies = pd.DataFrame(mlb.fit_transform(df['Genres']), 
+                             columns=mlb.classes_, 
+                             index=df.index)
+
+# Combine features into a feature matrix
+feature_matrix = pd.concat([df['Age_std'], df['Sex_binary'], profession_dummies, genres_dummies], axis=1)
+
+# Apply t-SNE for 2D visualization
+tsne = TSNE(n_components=2, random_state=42)
+tsne_results = tsne.fit_transform(feature_matrix)
+
+# Add t-SNE coordinates to the dataframe
+df['tsne_1'] = tsne_results[:, 0]
+df['tsne_2'] = tsne_results[:, 1]
+
+# Plot the visualization
+plt.figure(figsize=(10, 8))
+# Plot all users in gray
+plt.scatter(df['tsne_1'], df['tsne_2'], c='gray', alpha=0.5, label='Other Users')
+# Highlight similar users in red
+similar_indices = similar_users.index
+plt.scatter(df.loc[similar_indices, 'tsne_1'], 
+            df.loc[similar_indices, 'tsne_2'], 
+            c='red', label=f'Top {top_n} Similar Users')
+plt.legend()
+plt.title('t-SNE Visualization of User Profiles')
+plt.xlabel('t-SNE Component 1')
+plt.ylabel('t-SNE Component 2')
 plt.show()
-
-# Choose k=3 based on elbow or silhouette score (adjust if needed)
-k = 3
-kmeans = KMeans(n_clusters=k, random_state=42)
-kmeans.fit(X)
-
-# Add cluster labels to the DataFrame
-df['Cluster'] = kmeans.labels_
-
-# Function to find similar users
-def find_similar_users(age, sex, profession, music_preferences):
-    # Preprocess input
-    input_data = {
-        'Age': [age],
-        'Sex': [sex],
-        'Profession': [profession],
-        'Type of music you like to listen?': [music_preferences]
-    }
-
-    input_df = pd.DataFrame(input_data)
-
-    # Encode categorical variables, with handling for unseen labels in 'Profession'
-    input_df['Sex'] = le_sex.transform(input_df['Sex'])
-    
-    # Handle unseen 'Profession' values by adding a fallback 'Unknown' category
-    try:
-        input_df['Profession'] = le_profession.transform(input_df['Profession'])
-    except KeyError:
-        input_df['Profession'] = le_profession.transform(['Unknown'])
-
-    # Create binary vectors for music preferences
-    for music_type in music_types:
-        input_df[music_type] = input_df['Type of music you like to listen?'].apply(lambda x: 1 if music_type in x else 0)
-
-    # Drop the original music list column
-    input_df = input_df.drop(columns=['Type of music you like to listen?'])
-
-    # Normalize Age
-    input_df['Age'] = scaler.transform(input_df[['Age']])
-
-    # Prepare input features
-    input_features = input_df[X.columns]
-
-    # Predict the cluster
-    input_cluster = kmeans.predict(input_features)[0]
-
-    # Find users in the same cluster
-    similar_users = df[df['Cluster'] == input_cluster]
-
-    # Calculate distances to sort by similarity
-    distances = euclidean_distances(input_features, X)
-    similar_users['Distance'] = distances[0]
-    similar_users = similar_users.sort_values(by='Distance')
-
-    return similar_users[['Age', 'Sex', 'Profession'] + music_types.tolist()]
-
-# Hardcoded input
-input_age = 26
-input_sex = 'Male'
-input_profession = 'Undergraduate'  # This should work now even if 'Undergraduate' is unseen
-input_music = ['Rock', 'Classical', 'Pop']
-
-# Find similar users
-similar_users = find_similar_users(input_age, input_sex, input_profession, input_music)
-
-print("Similar Users for input (Age: 26, Sex: Male, Profession: Undergraduate, Music: Rock, Classical, Pop):")
-print(similar_users.head(5))  # Show top 5 most similar users
