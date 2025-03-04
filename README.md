@@ -1,4 +1,57 @@
-# music-recommendation-system/
+# music-recommendation-system
+
+This project consists of a FastAPI backend and a React frontend, which works together to provide personalized music recommendations based on user input and data from Spotify.
+
+## Prerequisites
+
+Ensure you have the following installed:
+
+- Python 3.10+ (or compatible version)
+- Node.js and npm (for React frontend)
+- MongoDB (for storing data)
+- Git (for cloning the repository)
+
+## Backend Setup (FastAPI)
+
+1. Navigate to the backend folder:
+
+```bash
+cd music-recommendation-backend
+```
+
+2. Set up a virtual environment (optional but recommended):
+
+```bash
+python -m venv venv
+```
+
+3. Activate the virtual environment:
+
+   - **Windows**:
+
+   ```bash
+   .\venv\Scripts\activate
+   ```
+
+   - **Linux/Mac**:
+
+   ```bash
+   source venv/bin/activate
+   ```
+
+4. Install the required Python packages:
+
+```bash
+pip install -r requirements.txt
+
+5. Run the FastAPI backend:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+This will start the backend server at `http://127.0.0.1:8000`.
+
 
 ```plaintext
 ├── music-recommendation-backend/
