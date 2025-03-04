@@ -1,4 +1,4 @@
-# music-recommendation-system
+# Personalized Song Recommendations Chatbot Based on User Emotions
 
 This project consists of a FastAPI backend and a React frontend, which works together to provide personalized music recommendations based on user input and data from Spotify.
 
