@@ -1,8 +1,10 @@
 {
   "ExpandedNodes": [
     "",
-    "\\app"
+    "\\datasets",
+    "\\modules",
+    "\\venv"
   ],
-  "SelectedNode": "\\app\\main.py",
+  "SelectedNode": "\\datasets\\user_profile.csv",
   "PreviewInSolutionExplorer": false
 }
